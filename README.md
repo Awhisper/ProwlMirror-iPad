@@ -35,8 +35,9 @@ removing only the first key's inserted newline. Editing, selection changes, losi
 focus, changed Agent state and IME composition cancel the pair. Software Return
 does not trigger this shortcut. Pending submissions retain a viewable text copy.
 
-This is an implementation checkpoint: production Agent delivery is not enabled yet;
-the submission UI and receipt handling are exercised with deterministic test sources.
+This is an implementation checkpoint: the initial Codex adapter in the Mac Host
+working branch has not completed build and runtime verification. The submission UI
+and receipt handling are currently verified with deterministic test sources.
 It requires the mobile-mirror Host changes in Prowl; an older
 Host is reported as incompatible. Ghostty is not embedded in this client.
 
