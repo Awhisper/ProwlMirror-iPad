@@ -12,8 +12,12 @@ struct ContentView: View {
   init() {
     #if DEBUG
       if CommandLine.arguments.contains("--mirror-ui-fixture") {
-        let fixture = MirrorUIFixture.session()
-        _sessions = State(initialValue: [fixture])
+        let multiple = CommandLine.arguments.contains("--mirror-ui-multiple-fixtures")
+        let fixture = MirrorUIFixture.session(longOutput: multiple)
+        let fixtures =
+          multiple
+          ? [fixture, MirrorUIFixture.session(name: "Second Fixture")] : [fixture]
+        _sessions = State(initialValue: fixtures)
         _selectedID = State(initialValue: fixture.id)
       }
     #endif
@@ -54,6 +58,7 @@ struct ContentView: View {
     } detail: {
       if let session = sessions.first(where: { $0.id == selectedID }) {
         MirrorReadingView(session: session)
+          .id(session.id)
       } else {
         ContentUnavailableView {
           Label("Choose a Remote Pane", systemImage: "rectangle.split.2x1")
@@ -173,6 +178,13 @@ private struct AddConnectionView: View {
 private struct MirrorReadingView: View {
   @Bindable var session: MirrorSession
   @State private var showsConnectionEditor = false
+  @State private var position: ScrollPosition
+  @State private var observedInitialPosition = false
+
+  init(session: MirrorSession) {
+    self.session = session
+    _position = State(initialValue: ScrollPosition(y: session.liveReadingOffset))
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -219,6 +231,22 @@ private struct MirrorReadingView: View {
               Color.clear.frame(height: 1).id("latest")
             }
             .padding()
+          }
+          .scrollPosition($position)
+          .accessibilityIdentifier("mirror-live-scroll")
+          .onDisappear { observedInitialPosition = false }
+          .onAppear {
+            if session.followsLatest {
+              position.scrollTo(edge: .bottom)
+            } else {
+              position.scrollTo(y: session.liveReadingOffset)
+            }
+          }
+          .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+          } action: { _, offset in
+            if observedInitialPosition { session.liveReadingOffset = offset }
+            observedInitialPosition = true
           }
           .onScrollPhaseChange { _, phase in
             if phase == .interacting { session.followsLatest = false }
@@ -351,6 +379,13 @@ private struct MirrorConnectionEditor: View {
 
 private struct MirrorHistoryView: View {
   @Bindable var session: MirrorSession
+  @State private var position: ScrollPosition
+  @State private var observedInitialPosition = false
+
+  init(session: MirrorSession) {
+    self.session = session
+    _position = State(initialValue: ScrollPosition(y: session.historyReadingOffset))
+  }
   var body: some View {
     VStack(alignment: .leading) {
       HStack {
@@ -385,6 +420,18 @@ private struct MirrorHistoryView: View {
                 .id(index)
             }
           }
+        }
+        .scrollPosition($position)
+        .accessibilityIdentifier("mirror-history-scroll")
+        .onAppear { position.scrollTo(y: session.historyReadingOffset) }
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+          max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+        } action: { _, offset in
+          if observedInitialPosition { session.historyReadingOffset = offset }
+          observedInitialPosition = true
+        }
+        .onChange(of: session.historyCapturedAt) { _, _ in
+          position.scrollTo(y: session.historyReadingOffset)
         }
         .onChange(of: session.historyOffset) { old, new in
           if old > new { proxy.scrollTo(old, anchor: .top) }

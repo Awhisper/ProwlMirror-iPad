@@ -2,6 +2,78 @@ import XCTest
 
 final class ProwlMirror_iPadUITests: XCTestCase {
   @MainActor
+  func testPaneSwitchRestoresLiveReadingPosition() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--mirror-ui-fixture", "--mirror-ui-multiple-fixtures"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    expectation(for: NSPredicate { _, _ in app.frame.width > app.frame.height }, evaluatedWith: nil)
+    waitForExpectations(timeout: 10)
+    let reading = app.scrollViews["mirror-live-scroll"]
+    XCTAssertTrue(reading.waitForExistence(timeout: 10))
+    reading.swipeDown()
+    let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Live marker "))
+    guard
+      let anchor = rows.allElementsBoundByIndex.first(where: {
+        $0.isHittable && $0.frame.minY > reading.frame.minY + 20
+          && $0.frame.maxY < reading.frame.maxY
+      })
+    else {
+      XCTFail("No visible live anchor")
+      return
+    }
+    let label = anchor.label
+    let y = anchor.frame.minY
+    app.staticTexts["Second Fixture"].tap()
+    XCTAssertTrue(app.navigationBars["Second Fixture · Codex"].waitForExistence(timeout: 5))
+    app.staticTexts["UI Fixture"].tap()
+    let restored = app.staticTexts[label]
+    expectation(
+      for: NSPredicate { _, _ in
+        restored.exists && restored.isHittable && abs(restored.frame.minY - y) < 12
+      }, evaluatedWith: nil)
+    waitForExpectations(timeout: 5)
+  }
+
+  @MainActor
+  func testPaneSwitchRestoresHistoryReadingPosition() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--mirror-ui-fixture", "--mirror-ui-multiple-fixtures"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    expectation(for: NSPredicate { _, _ in app.frame.width > app.frame.height }, evaluatedWith: nil)
+    waitForExpectations(timeout: 10)
+    XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 10))
+    app.buttons["History"].tap()
+    XCTAssertTrue(app.staticTexts["Loaded lines 202–401"].waitForExistence(timeout: 5))
+    let history = app.scrollViews["mirror-history-scroll"]
+    history.swipeUp()
+    let rows = app.staticTexts.matching(
+      NSPredicate(format: "label BEGINSWITH %@", "Retained line "))
+    guard
+      let anchor = rows.allElementsBoundByIndex.first(where: {
+        $0.isHittable && $0.frame.minY > history.frame.minY + 20
+          && $0.frame.maxY < history.frame.maxY
+      })
+    else {
+      XCTFail("No visible history anchor")
+      return
+    }
+    let label = anchor.label
+    let y = anchor.frame.minY
+    app.staticTexts["Second Fixture"].tap()
+    XCTAssertTrue(app.navigationBars["Second Fixture · Codex"].waitForExistence(timeout: 5))
+    app.staticTexts["UI Fixture"].tap()
+    XCTAssertTrue(app.buttons["Live Output"].waitForExistence(timeout: 5))
+    let restored = app.staticTexts[label]
+    expectation(
+      for: NSPredicate { _, _ in
+        restored.exists && restored.isHittable && abs(restored.frame.minY - y) < 12
+      }, evaluatedWith: nil)
+    waitForExpectations(timeout: 5)
+  }
+
+  @MainActor
   func testMultilineDraftRequiresExplicitSend() {
     let app = XCUIApplication()
     app.launchArguments = ["--mirror-ui-fixture"]

@@ -52,6 +52,8 @@ final class MirrorSession: Identifiable {
   private(set) var historyTruncated = false
   private(set) var isLoadingHistory = false
   var showsHistory = false
+  var liveReadingOffset: CGFloat = 0
+  var historyReadingOffset: CGFloat = 0
   @ObservationIgnored private var historyID: UUID?
   @ObservationIgnored private var historyBytes = 0
   var draft = "" {
@@ -194,6 +196,14 @@ final class MirrorSession: Identifiable {
       text = ""
       revision = 0
       updatedAt = nil
+      liveReadingOffset = 0
+      historyReadingOffset = 0
+      historyID = nil
+      historyLines = []
+      historyBytes = 0
+      historyOffset = 0
+      historyCapturedAt = nil
+      showsHistory = false
     }
     self.configuration = configuration
     intent = .ifFree
@@ -257,6 +267,7 @@ final class MirrorSession: Identifiable {
   func loadHistory(refresh: Bool = false) {
     guard status == .live, supportsHistory, !isLoadingHistory, let subscriptionID else { return }
     if refresh {
+      historyReadingOffset = 0
       historyID = nil
       historyLines = []
       historyBytes = 0

@@ -22,6 +22,8 @@ subscription and requests an unchanged frame again if necessary.
 History is available when the Host advertises bounded history capture. It opens a
 frozen snapshot with capture time and truncation information; loading earlier pages
 preserves the reading position while live output continues updating separately.
+Each pane keeps separate live and history reading positions when switching panes.
+Changing the Host address clears the previous Host's history and reading positions.
 
 The composer supports multiline drafts and explicit Send when the Host advertises
 submission and reports the Agent ready. Pending or uncertain delivery blocks another

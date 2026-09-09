@@ -145,6 +145,16 @@ struct MirrorSessionTests {
         text: "new live", subscriptionID: lease))
     #expect(session.historyLines == ["first", "last"])
     #expect(session.text == "new live")
+    session.liveReadingOffset = 300
+    session.historyReadingOffset = 200
+    session.updateConnection(
+      .init(
+        address: "192.0.2.1", port: 7880,
+        pairingKey: String(repeating: "a", count: 64)))
+    #expect(session.historyLines.isEmpty)
+    #expect(!session.showsHistory)
+    #expect(session.liveReadingOffset == 0)
+    #expect(session.historyReadingOffset == 0)
   }
 
   @Test func foregroundRefreshKeepsLeaseAndConnection() {

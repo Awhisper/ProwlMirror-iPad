@@ -4,8 +4,8 @@
   /// Explicit UI-test launch only. Network and Host behavior are tested separately.
   @MainActor
   enum MirrorUIFixture {
-    static func session() -> MirrorSession {
-      let channel = Channel()
+    static func session(name: String = "UI Fixture", longOutput: Bool = false) -> MirrorSession {
+      let channel = Channel(name: name, longOutput: longOutput)
       let session = MirrorSession(
         configuration: .init(
           address: "127.0.0.1", port: 7880, pairingKey: String(repeating: "a", count: 64)),
@@ -19,9 +19,14 @@
       var onReady: (() -> Void)?
       var onMessage: ((MirrorMessage) -> Void)?
       var onClose: ((String?) -> Void)?
-      let pane = MirrorPaneDescriptor(
-        id: UUID(), title: "UI Fixture · Codex", directory: "/fixture", busy: false,
-        projectName: "UI Fixture", subtitle: "Codex · main")
+      let pane: MirrorPaneDescriptor
+      let longOutput: Bool
+      init(name: String, longOutput: Bool) {
+        self.longOutput = longOutput
+        pane = MirrorPaneDescriptor(
+          id: UUID(), title: "\(name) · Codex", directory: "/fixture", busy: false,
+          projectName: name, subtitle: "Codex · main")
+      }
       private let lease = UUID()
       private let run = UUID()
       private let agentGeneration = UUID()
@@ -80,6 +85,9 @@
 
       private func frame() {
         sequence += 1
+        let extra =
+          longOutput
+          ? (1...40).map { "\n```text\nLive marker \($0)\n```" }.joined() : ""
         onMessage?(
           .init(
             version: 2, kind: .textFrame, sequence: sequence,
@@ -96,7 +104,7 @@
               | --- | --- |
               | iPad | Reading |
               | macOS | Host |
-              """, subscriptionID: lease))
+              """ + extra, subscriptionID: lease))
       }
     }
   }
