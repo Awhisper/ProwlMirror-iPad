@@ -35,20 +35,12 @@ struct MirrorDocumentView: View {
     }
     .sheet(item: $expanded) { block in
       NavigationStack {
-        ScrollView {
-          ScrollView(.horizontal) {
-            if case .table(_, _, let rows) = block {
-              table(rows).padding()
-            } else {
-              Text(block.raw).font(.body.monospaced()).textSelection(.enabled).padding()
-            }
+        MirrorFrozenDetailView(block: block)
+          .navigationTitle("Frozen detail")
+          .toolbar {
+            Button("Copy") { UIPasteboard.general.string = block.raw }
+            Button("Done") { expanded = nil }
           }
-        }
-        .navigationTitle("Frozen detail")
-        .toolbar {
-          Button("Copy") { UIPasteboard.general.string = block.raw }
-          Button("Done") { expanded = nil }
-        }
       }
     }
   }

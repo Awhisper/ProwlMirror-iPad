@@ -85,6 +85,14 @@
 
       private func frame() {
         sequence += 1
+        if CommandLine.arguments.contains("--mirror-ui-large-table-fixture") {
+          let rows = (0..<10_000).map { "| Row \($0) | Value \($0) |" }.joined(separator: "\n")
+          onMessage?(
+            .init(
+              version: 2, kind: .textFrame, sequence: sequence,
+              text: "| Index | Value |\n| --- | --- |\n" + rows, subscriptionID: lease))
+          return
+        }
         let extra =
           longOutput
           ? (1...40).map { "\n```text\nLive marker \($0)\n```" }.joined() : ""

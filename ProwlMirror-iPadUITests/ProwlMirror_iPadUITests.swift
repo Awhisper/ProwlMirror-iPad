@@ -2,6 +2,36 @@ import XCTest
 
 final class ProwlMirror_iPadUITests: XCTestCase {
   @MainActor
+  func testLargeFrozenTableShowsRowsAndScrolls() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--mirror-ui-fixture", "--mirror-ui-large-table-fixture"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    XCTAssertTrue(app.buttons["Expand"].waitForExistence(timeout: 10))
+    app.buttons["Expand"].tap()
+    XCTAssertTrue(app.navigationBars["Frozen detail"].waitForExistence(timeout: 5))
+    let detail = app.scrollViews["mirror-frozen-table"]
+    XCTAssertTrue(detail.waitForExistence(timeout: 5))
+    let first = detail.staticTexts["Row 0"]
+    XCTAssertTrue(first.waitForExistence(timeout: 5))
+    XCTAssertTrue(first.isHittable)
+    detail.swipeUp()
+    let rows = detail.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Row "))
+    XCTAssertTrue(
+      rows.allElementsBoundByIndex.contains { row in
+        let index = Int(row.label.dropFirst(4)) ?? -1
+        return index > 10 && row.frame.minY > detail.frame.minY
+          && row.frame.maxY < detail.frame.maxY && row.isHittable
+      })
+    let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    attachment.name = "Large frozen table after scrolling"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
   func testPaneSwitchRestoresLiveReadingPosition() {
     let app = XCUIApplication()
     app.launchArguments = ["--mirror-ui-fixture", "--mirror-ui-multiple-fixtures"]
