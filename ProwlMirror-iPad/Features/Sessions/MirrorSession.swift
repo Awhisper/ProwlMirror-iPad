@@ -45,6 +45,15 @@ final class MirrorSession: Identifiable {
   private(set) var revision: UInt64 = 0
   private(set) var updatedAt: Date?
   private(set) var error: String?
+  private(set) var supportsHistory = false
+  private(set) var historyLines: [String] = []
+  private(set) var historyOffset = 0
+  private(set) var historyCapturedAt: Date?
+  private(set) var historyTruncated = false
+  private(set) var isLoadingHistory = false
+  var showsHistory = false
+  @ObservationIgnored private var historyID: UUID?
+  @ObservationIgnored private var historyBytes = 0
   var draft = ""
   var followsLatest = true
   var onVerifiedConnection: ((MirrorSavedConnection) -> Void)?
@@ -95,6 +104,7 @@ final class MirrorSession: Identifiable {
         guard let self, self.generation == attempt else { return }
         self.transport = nil
         self.subscriptionID = nil
+        self.isLoadingHistory = false
         if self.status == .live || self.status == .connecting || self.status == .subscribing
           || self.status == .choosingPane
         {
@@ -160,7 +170,26 @@ final class MirrorSession: Identifiable {
     old?.onClose = nil
     old?.close(nil)
     subscriptionID = nil
+    isLoadingHistory = false
     status = .disconnected
+  }
+
+  func loadHistory(refresh: Bool = false) {
+    guard status == .live, supportsHistory, !isLoadingHistory, let subscriptionID else { return }
+    if refresh {
+      historyID = nil
+      historyLines = []
+      historyBytes = 0
+      historyOffset = 0
+      historyCapturedAt = nil
+    }
+    guard historyID == nil || historyOffset > 0 else { return }
+    isLoadingHistory = true
+    showsHistory = true
+    send(
+      MirrorMessage(
+        version: 2, kind: .history, historyID: historyID,
+        offset: historyID == nil ? nil : historyOffset, subscriptionID: subscriptionID))
   }
 
   private func subscribe() {
@@ -185,6 +214,7 @@ final class MirrorSession: Identifiable {
         return
       }
       supportsRefresh = message.capabilities?.contains("refresh") == true
+      supportsHistory = message.capabilities?.contains("history") == true
       panes = message.panes ?? []
       onVerifiedConnection?(configuration)
       if let pane {
@@ -205,6 +235,13 @@ final class MirrorSession: Identifiable {
         return
       }
       subscriptionID = lease
+      historyID = nil
+      historyLines = []
+      historyBytes = 0
+      historyOffset = 0
+      historyCapturedAt = nil
+      isLoadingHistory = false
+      showsHistory = false
     case .textFrame:
       guard message.version == 2, let lease = subscriptionID, message.subscriptionID == lease,
         let sequence = message.sequence, sequence > revision, let replacement = message.text,
@@ -218,6 +255,31 @@ final class MirrorSession: Identifiable {
       updatedAt = Date()
       status = .live
       send(MirrorMessage(version: 2, kind: .acknowledge, sequence: sequence, subscriptionID: lease))
+    case .historyPage:
+      guard isLoadingHistory, message.version == 2, subscriptionID != nil,
+        message.subscriptionID == subscriptionID, let id = message.historyID,
+        let offset = message.offset, let lines = message.lines,
+        let total = message.total, let capturedAt = message.capturedAt,
+        total >= 0, total <= MirrorHistory.maximumBytes + 1,
+        offset >= 0, offset <= total, capturedAt.isFinite, lines.count <= MirrorHistory.pageSize,
+        offset + lines.count == (historyID == nil ? total : historyOffset),
+        historyID == nil || historyID == id
+      else {
+        invalidMessage()
+        return
+      }
+      let pageBytes = lines.reduce(0) { $0 + $1.utf8.count + 1 }
+      guard pageBytes <= MirrorHistory.maximumBytes + 1 - historyBytes else {
+        invalidMessage()
+        return
+      }
+      historyBytes += pageBytes
+      historyID = id
+      historyOffset = offset
+      historyLines.insert(contentsOf: lines, at: 0)
+      historyCapturedAt = Date(timeIntervalSince1970: capturedAt)
+      historyTruncated = message.truncated ?? false
+      isLoadingHistory = false
     case .ended:
       guard let reason = message.reason else {
         invalidMessage()
@@ -230,6 +292,13 @@ final class MirrorSession: Identifiable {
       }
       transport?.close(nil)
     case .failure:
+      if message.error?.hasPrefix("HISTORY_UNAVAILABLE") == true,
+        message.subscriptionID == subscriptionID
+      {
+        isLoadingHistory = false
+        error = message.error
+        return
+      }
       if message.error?.hasPrefix("PANE_BUSY") == true { status = .takenOver }
       error = message.error ?? "Host rejected the request."
       transport?.close(nil)

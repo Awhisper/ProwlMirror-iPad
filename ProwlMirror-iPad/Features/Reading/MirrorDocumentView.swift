@@ -36,11 +36,13 @@ struct MirrorDocumentView: View {
     }
     .sheet(item: $expanded) { block in
       NavigationStack {
-        ScrollView([.horizontal, .vertical]) {
-          if case .table(_, _, let rows) = block {
-            table(rows).padding()
-          } else {
-            Text(block.raw).font(.body.monospaced()).textSelection(.enabled).padding()
+        ScrollView {
+          ScrollView(.horizontal) {
+            if case .table(_, _, let rows) = block {
+              table(rows).padding()
+            } else {
+              Text(block.raw).font(.body.monospaced()).textSelection(.enabled).padding()
+            }
           }
         }
         .navigationTitle("Frozen detail")

@@ -62,6 +62,14 @@ struct MirrorNativeTransportTests {
     #expect(refreshed.sequence == 2)
     #expect(refreshed.subscriptionID == subscribed.subscriptionID)
     #expect(host.subscriberCount == 1)
+    connection.send(
+      MirrorMessage(version: 2, kind: .history, subscriptionID: subscribed.subscriptionID))
+    let history = try #require(await messages.next())
+    #expect(history.kind == .historyPage)
+    #expect(history.lines?.last == "history end")
+    #expect(history.truncated == true)
+    #expect(history.subscriptionID == subscribed.subscriptionID)
+    #expect(history.capturedAt != nil)
     host.stop()
     #expect(await messages.next()?.reason == .hostStopped)
     #expect(source.panes().count == 1)
@@ -70,6 +78,10 @@ struct MirrorNativeTransportTests {
   private final class Source: MirrorPaneSource {
     let id = UUID()
     var reads = 0
+    var supportsBoundedHistory: Bool { true }
+    func boundedRetainedText(_ id: UUID) throws -> MirrorRetainedText {
+      .init(text: "older line\nhistory end", truncated: true)
+    }
     func panes() -> [MirrorPaneDescriptor] {
       [.init(id: id, title: "Fixture", directory: "/fixture", busy: false)]
     }

@@ -9,6 +9,16 @@ struct ContentView: View {
   @State private var columns: NavigationSplitViewVisibility = .all
   @State private var wasBackgrounded = false
 
+  init() {
+    #if DEBUG
+      if CommandLine.arguments.contains("--mirror-ui-fixture") {
+        let fixture = MirrorUIFixture.session()
+        _sessions = State(initialValue: [fixture])
+        _selectedID = State(initialValue: fixture.id)
+      }
+    #endif
+  }
+
   var body: some View {
     NavigationSplitView(columnVisibility: $columns) {
       List(selection: $selectedID) {
@@ -197,32 +207,36 @@ private struct MirrorReadingView: View {
         }
         Button("Refresh Panes") { session.refreshPanes() }
       }
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(alignment: .leading, spacing: 12) {
-            MirrorDocumentView(text: session.text)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .accessibilityIdentifier("mirror-live-text")
-            Color.clear.frame(height: 1).id("latest")
-          }
-          .padding()
-        }
-        .onScrollPhaseChange { _, phase in
-          if phase == .interacting { session.followsLatest = false }
-        }
-        .onChange(of: session.revision) { _, _ in
-          if session.followsLatest { proxy.scrollTo("latest", anchor: .bottom) }
-        }
-        .safeAreaInset(edge: .bottom) {
-          HStack {
-            Toggle("Follow latest", isOn: $session.followsLatest).toggleStyle(.button)
-            Spacer()
-            Button("Latest") {
-              session.followsLatest = true
-              proxy.scrollTo("latest", anchor: .bottom)
+      if session.showsHistory {
+        MirrorHistoryView(session: session)
+      } else {
+        ScrollViewReader { proxy in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+              MirrorDocumentView(text: session.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("mirror-live-text")
+              Color.clear.frame(height: 1).id("latest")
             }
+            .padding()
           }
-          .font(.caption).padding(.horizontal).padding(.vertical, 8).background(.bar)
+          .onScrollPhaseChange { _, phase in
+            if phase == .interacting { session.followsLatest = false }
+          }
+          .onChange(of: session.revision) { _, _ in
+            if session.followsLatest { proxy.scrollTo("latest", anchor: .bottom) }
+          }
+          .safeAreaInset(edge: .bottom) {
+            HStack {
+              Toggle("Follow latest", isOn: $session.followsLatest).toggleStyle(.button)
+              Spacer()
+              Button("Latest") {
+                session.followsLatest = true
+                proxy.scrollTo("latest", anchor: .bottom)
+              }
+            }
+            .font(.caption).padding(.horizontal).padding(.vertical, 8).background(.bar)
+          }
         }
       }
       Divider()
@@ -239,6 +253,14 @@ private struct MirrorReadingView: View {
     .navigationTitle(session.pane?.title ?? "Remote Mirror")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
+      Button(session.showsHistory ? "Live Output" : "History", systemImage: "clock") {
+        if session.showsHistory {
+          session.showsHistory = false
+        } else {
+          session.loadHistory(refresh: true)
+        }
+      }
+      .disabled(!session.showsHistory && (!session.supportsHistory || session.status != .live))
       Button("Edit Connection", systemImage: "network") { showsConnectionEditor = true }
         .help("Update the Host address, port or pairing key")
     }
@@ -295,5 +317,51 @@ private struct MirrorConnectionEditor: View {
         key = configuration.pairingKey
       }
     }
+  }
+}
+
+private struct MirrorHistoryView: View {
+  @Bindable var session: MirrorSession
+  var body: some View {
+    VStack(alignment: .leading) {
+      HStack {
+        if let capturedAt = session.historyCapturedAt {
+          Text("Captured \(capturedAt.formatted(date: .omitted, time: .standard))")
+        }
+        Spacer()
+        Button("Refresh History") { session.loadHistory(refresh: true) }
+          .disabled(session.isLoadingHistory || session.status != .live)
+      }.font(.caption)
+      if session.historyTruncated {
+        Text("Older lines omitted. The first retained line may begin mid-paragraph.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      Text(
+        "Loaded lines \(session.historyOffset + 1)–\(session.historyOffset + session.historyLines.count)"
+      )
+      .font(.caption).foregroundStyle(.secondary)
+      ScrollViewReader { proxy in
+        ScrollView {
+          LazyVStack(alignment: .leading) {
+            Button("Load Earlier 200 Lines") { session.loadHistory() }
+              .disabled(
+                session.historyOffset == 0 || session.isLoadingHistory || session.status != .live)
+            ForEach(
+              session.historyOffset..<(session.historyOffset + session.historyLines.count),
+              id: \.self
+            ) { index in
+              let line = session.historyLines[index - session.historyOffset]
+              Text(line.isEmpty ? " " : line).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .id(index)
+            }
+          }
+        }
+        .onChange(of: session.historyOffset) { old, new in
+          if old > new { proxy.scrollTo(old, anchor: .top) }
+        }
+      }
+      if session.isLoadingHistory { ProgressView("Loading history…") }
+    }.padding()
   }
 }

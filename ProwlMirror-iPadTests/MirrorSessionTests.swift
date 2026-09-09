@@ -5,6 +5,51 @@ import Testing
 
 @MainActor
 struct MirrorSessionTests {
+  @Test func historyPagesStayFrozenAndDoNotReplaceLiveOutput() {
+    let transport = FakeTransport()
+    let session = makeSession(transport)
+    let pane = MirrorPaneDescriptor(id: UUID(), title: "Fixture", directory: "/", busy: false)
+    session.connect()
+    transport.onMessage?(
+      MirrorMessage(
+        kind: .panes, panes: [pane], selectedVersion: 2,
+        capabilities: ["text-v1", "history"]))
+    session.select(pane)
+    let lease = UUID()
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .subscribed, paneID: pane.id,
+        subscriptionID: lease, hostRunID: UUID()))
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .textFrame, sequence: 1,
+        text: "live", subscriptionID: lease))
+    session.loadHistory(refresh: true)
+    let history = UUID()
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .historyPage, historyID: history,
+        offset: 1, lines: ["last"], total: 2, subscriptionID: lease, capturedAt: 100,
+        truncated: true))
+    session.loadHistory()
+    #expect(transport.sent.last?.historyID == history)
+    #expect(transport.sent.last?.offset == 1)
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .historyPage, historyID: history,
+        offset: 0, lines: ["first"], total: 2, subscriptionID: lease, capturedAt: 100,
+        truncated: true))
+    #expect(session.historyLines == ["first", "last"])
+    #expect(session.historyTruncated)
+    #expect(session.text == "live")
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .textFrame, sequence: 2,
+        text: "new live", subscriptionID: lease))
+    #expect(session.historyLines == ["first", "last"])
+    #expect(session.text == "new live")
+  }
+
   @Test func foregroundRefreshKeepsLeaseAndConnection() {
     let transport = FakeTransport()
     let session = makeSession(transport)

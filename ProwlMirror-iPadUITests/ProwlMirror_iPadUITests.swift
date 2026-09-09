@@ -2,6 +2,50 @@ import XCTest
 
 final class ProwlMirror_iPadUITests: XCTestCase {
   @MainActor
+  func testReadingHistoryDetailsAndConnectionEditing() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--mirror-ui-fixture"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    let wide = NSPredicate { _, _ in app.frame.width > app.frame.height }
+    expectation(for: wide, evaluatedWith: nil)
+    waitForExpectations(timeout: 10)
+    XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 10))
+    let live = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    live.name = "Fixture live reading"
+    live.lifetime = .keepAlways
+    add(live)
+    app.buttons["Expand"].firstMatch.tap()
+    XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 5))
+    let detail = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    detail.name = "Fixture frozen code detail"
+    detail.lifetime = .keepAlways
+    add(detail)
+    app.buttons["Done"].tap()
+    app.buttons["History"].tap()
+    XCTAssertTrue(app.staticTexts["Loaded lines 202–401"].waitForExistence(timeout: 5))
+    app.buttons["Load Earlier 200 Lines"].tap()
+    XCTAssertTrue(app.staticTexts["Loaded lines 2–401"].waitForExistence(timeout: 5))
+    let history = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    history.name = "Fixture history paging"
+    history.lifetime = .keepAlways
+    add(history)
+    app.buttons["Live Output"].tap()
+    XCTAssertTrue(app.buttons["Expand"].firstMatch.waitForExistence(timeout: 5))
+    app.buttons["Edit Connection"].tap()
+    let key = app.secureTextFields["Pairing Key"]
+    XCTAssertTrue(key.waitForExistence(timeout: 5))
+    key.tap()
+    key.typeText("x")
+    app.buttons["Reconnect"].tap()
+    XCTAssertTrue(
+      app.staticTexts["Paste the 64-character pairing key shown on the Host."].waitForExistence(
+        timeout: 5))
+    app.buttons["Cancel"].tap()
+    XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
   func testConnectionFormRemainsUsableAcrossRotation() {
     let app = XCUIApplication()
     XCUIDevice.shared.orientation = .landscapeLeft

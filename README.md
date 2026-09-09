@@ -19,8 +19,12 @@ Edit Connection updates the IP, port or pairing key; reconnecting does not take 
 another device's pane. On Hosts with `refresh`, foreground refresh keeps the same
 subscription and requests an unchanged frame again if necessary.
 
-This is an implementation checkpoint: message submission and remote history are
-not available yet. It requires the mobile-mirror Host changes in Prowl; an older
+History is available when the Host advertises bounded history capture. It opens a
+frozen snapshot with capture time and truncation information; loading earlier pages
+preserves the reading position while live output continues updating separately.
+
+This is an implementation checkpoint: message submission is not enabled yet.
+It requires the mobile-mirror Host changes in Prowl; an older
 Host is reported as incompatible. Ghostty is not embedded in this client.
 
 Run the unit, native TLS, and rotation UI tests with a signed iPad simulator build:
@@ -33,5 +37,9 @@ xcodebuild test -project ProwlMirror-iPad.xcodeproj -scheme ProwlMirror-iPad \
 Keep simulator signing enabled so Keychain behavior can be tested. The transport
 test uses the Prowl Host implementation with a deterministic text source; it does
 not replace testing against a real Mac Host and agent session.
+
+The Debug-only `--mirror-ui-fixture` launch argument supplies deterministic reading,
+code, table and history data for UI tests. It does not connect to a real Host or
+save credentials. UI tests also exercise connection editing and invalid-key feedback.
 
 See `ThirdPartyNotices/` for the source and license of the Prowl-derived code.
