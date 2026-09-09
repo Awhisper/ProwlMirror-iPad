@@ -152,8 +152,8 @@ private struct AddConnectionView: View {
       address: host, port: number,
       pairingKey: key.trimmingCharacters(in: .whitespacesAndNewlines))
     let newSession = MirrorSession(configuration: config)
-    newSession.onVerifiedConnection = {
-      do { try config.save() } catch { self.error = error.localizedDescription }
+    newSession.onVerifiedConnection = { verified in
+      do { try verified.save() } catch { self.error = error.localizedDescription }
     }
     session = newSession
     newSession.connect()
@@ -162,6 +162,7 @@ private struct AddConnectionView: View {
 
 private struct MirrorReadingView: View {
   @Bindable var session: MirrorSession
+  @State private var showsConnectionEditor = false
 
   var body: some View {
     VStack(spacing: 0) {
@@ -181,6 +182,20 @@ private struct MirrorReadingView: View {
       .font(.callout).padding()
       if let error = session.error {
         Text(error).font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+      }
+      if session.status == .choosingPane {
+        List(session.panes) { pane in
+          Button {
+            session.select(pane)
+          } label: {
+            VStack(alignment: .leading) {
+              Text(pane.projectName ?? pane.title)
+              Text(pane.subtitle ?? pane.directory).font(.caption)
+              Text(pane.busy ? "Take Over" : "Mirror")
+            }
+          }
+        }
+        Button("Refresh Panes") { session.refreshPanes() }
       }
       ScrollViewReader { proxy in
         ScrollView {
@@ -223,5 +238,62 @@ private struct MirrorReadingView: View {
     }
     .navigationTitle(session.pane?.title ?? "Remote Mirror")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      Button("Edit Connection", systemImage: "network") { showsConnectionEditor = true }
+        .help("Update the Host address, port or pairing key")
+    }
+    .sheet(isPresented: $showsConnectionEditor) {
+      MirrorConnectionEditor(configuration: session.configuration) { configuration in
+        session.updateConnection(configuration)
+      }
+    }
+  }
+}
+
+private struct MirrorConnectionEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  let configuration: MirrorSavedConnection
+  let onConnect: (MirrorSavedConnection) -> Void
+  @State private var address = ""
+  @State private var port = ""
+  @State private var key = ""
+  @State private var error: String?
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        TextField("Host IP", text: $address)
+          .textInputAutocapitalization(.never).autocorrectionDisabled()
+        TextField("Port", text: $port).keyboardType(.numberPad)
+        SecureField("Pairing Key", text: $key)
+          .textInputAutocapitalization(.never).autocorrectionDisabled()
+        Text("Reconnect only if the pane is free. Changing Host opens pane selection.")
+          .font(.caption).foregroundStyle(.secondary)
+        if let error { Text(error).foregroundStyle(.red) }
+        Button("Reconnect") {
+          let host = address.trimmingCharacters(in: .whitespacesAndNewlines)
+          guard let number = UInt16(port), number > 0,
+            IPv4Address(host) != nil || IPv6Address(host) != nil
+          else {
+            error = "Enter a valid IP address and port."
+            return
+          }
+          let secret = key.trimmingCharacters(in: .whitespacesAndNewlines)
+          do { _ = try MirrorConnection.parameters(pairingKey: secret) } catch {
+            self.error = error.localizedDescription
+            return
+          }
+          onConnect(.init(address: host, port: number, pairingKey: secret))
+          dismiss()
+        }
+      }
+      .navigationTitle("Edit Connection")
+      .toolbar { Button("Cancel") { dismiss() } }
+      .onAppear {
+        address = configuration.address
+        port = String(configuration.port)
+        key = configuration.pairingKey
+      }
+    }
   }
 }

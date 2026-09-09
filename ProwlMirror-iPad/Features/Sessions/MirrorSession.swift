@@ -37,7 +37,7 @@ final class MirrorSession: Identifiable {
   }
 
   let id = UUID()
-  let configuration: MirrorSavedConnection
+  private(set) var configuration: MirrorSavedConnection
   private(set) var panes: [MirrorPaneDescriptor] = []
   private(set) var pane: MirrorPaneDescriptor?
   private(set) var status: Status = .disconnected
@@ -47,12 +47,13 @@ final class MirrorSession: Identifiable {
   private(set) var error: String?
   var draft = ""
   var followsLatest = true
-  var onVerifiedConnection: (() -> Void)?
+  var onVerifiedConnection: ((MirrorSavedConnection) -> Void)?
   @ObservationIgnored private var transport: (any MirrorTransport)?
   @ObservationIgnored private var subscriptionID: UUID?
   @ObservationIgnored private var generation = UUID()
   @ObservationIgnored private var intent: MirrorMessage.Intent = .ifFree
   @ObservationIgnored private var userDisconnected = false
+  @ObservationIgnored private var supportsRefresh = false
   @ObservationIgnored private let makeTransport:
     (MirrorSavedConnection) throws -> any MirrorTransport
 
@@ -121,7 +122,7 @@ final class MirrorSession: Identifiable {
   }
 
   func retry(takeover: Bool = false) {
-    guard transport == nil, pane != nil else { return }
+    guard transport == nil else { return }
     intent = takeover ? .takeover : .ifFree
     connect()
   }
@@ -130,12 +131,25 @@ final class MirrorSession: Identifiable {
     guard !userDisconnected else { return }
     if status == .disconnected {
       retry()
+    } else if status == .live, supportsRefresh, let subscriptionID {
+      send(MirrorMessage(version: 2, kind: .refresh, subscriptionID: subscriptionID))
     }
-    // A fresh connection requests a full frame, even if the last revision is unchanged.
-    else if status == .live {
-      disconnect()
-      retry()
+  }
+
+  func updateConnection(_ configuration: MirrorSavedConnection) {
+    disconnect()
+    if self.configuration.address != configuration.address
+      || self.configuration.port != configuration.port
+    {
+      pane = nil
+      panes = []
+      text = ""
+      revision = 0
+      updatedAt = nil
     }
+    self.configuration = configuration
+    intent = .ifFree
+    connect()
   }
 
   func disconnect() {
@@ -170,8 +184,9 @@ final class MirrorSession: Identifiable {
         transport?.close(nil)
         return
       }
+      supportsRefresh = message.capabilities?.contains("refresh") == true
       panes = message.panes ?? []
-      onVerifiedConnection?()
+      onVerifiedConnection?(configuration)
       if let pane {
         guard panes.contains(where: { $0.id == pane.id }) else {
           status = .paneClosed

@@ -15,6 +15,10 @@ live text replacement, retry without taking over another client, and foreground
 refresh. Code and table details open as a frozen copy while the main view continues
 updating. Successful connection details are saved in the local Keychain.
 
+Edit Connection updates the IP, port or pairing key; reconnecting does not take over
+another device's pane. On Hosts with `refresh`, foreground refresh keeps the same
+subscription and requests an unchanged frame again if necessary.
+
 This is an implementation checkpoint: message submission and remote history are
 not available yet. It requires the mobile-mirror Host changes in Prowl; an older
 Host is reported as incompatible. Ghostty is not embedded in this client.

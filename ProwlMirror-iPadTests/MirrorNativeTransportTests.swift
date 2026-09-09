@@ -50,6 +50,18 @@ struct MirrorNativeTransportTests {
     #expect(frame.kind == .textFrame)
     #expect(frame.text == "思考中\nSwift + Kotlin")
     #expect(frame.subscriptionID == subscribed.subscriptionID)
+    connection.send(
+      MirrorMessage(
+        version: 2, kind: .acknowledge, sequence: frame.sequence,
+        subscriptionID: subscribed.subscriptionID))
+    connection.send(
+      MirrorMessage(version: 2, kind: .refresh, subscriptionID: subscribed.subscriptionID))
+    let refreshed = try #require(await messages.next())
+    #expect(refreshed.kind == .textFrame)
+    #expect(refreshed.text == frame.text)
+    #expect(refreshed.sequence == 2)
+    #expect(refreshed.subscriptionID == subscribed.subscriptionID)
+    #expect(host.subscriberCount == 1)
     host.stop()
     #expect(await messages.next()?.reason == .hostStopped)
     #expect(source.panes().count == 1)
