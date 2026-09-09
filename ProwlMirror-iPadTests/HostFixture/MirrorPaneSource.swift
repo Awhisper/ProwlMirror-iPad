@@ -1,0 +1,17 @@
+import Foundation
+
+// Host implementation copied from the sibling Prowl mobile-mirror branch for native transport integration tests.
+@testable import ProwlMirror_iPad
+
+@MainActor
+protocol MirrorPaneSource {
+  func panes() -> [MirrorPaneDescriptor]
+  func snapshot(_ id: UUID) throws -> MirrorFrame
+  func write(_ bytes: Data, to id: UUID) throws
+  func retainedText(_ id: UUID) throws -> String
+  func activeText(_ id: UUID) throws -> String
+}
+
+extension MirrorPaneSource {
+  func activeText(_ id: UUID) throws -> String { throw MirrorProtocolError.invalidMessage }
+}
