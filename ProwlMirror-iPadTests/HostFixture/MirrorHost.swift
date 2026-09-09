@@ -175,17 +175,7 @@ final class MirrorHost {
       case .subscribe:
         try subscribe(message, peer: peer)
       case .acknowledge:
-        guard var subscription = subscription(for: message, peer: peer),
-          let sequence = message.sequence
-        else {
-          throw MirrorProtocolError.invalidMessage
-        }
-        if subscription.representation == .text {
-          try subscription.textGate.acknowledge(sequence)
-        } else {
-          try subscription.gate.acknowledge(sequence)
-        }
-        subscriptions[peer.id] = subscription
+        try acknowledge(message, peer: peer)
       case .refresh:
         guard message.version == 2, var subscription = subscription(for: message, peer: peer) else {
           throw MirrorProtocolError.invalidMessage
@@ -223,6 +213,19 @@ final class MirrorHost {
       guard message.version == 2, message.subscriptionID == subscription.id else { return nil }
     }
     return subscription
+  }
+
+  private func acknowledge(_ message: MirrorMessage, peer: MirrorConnection) throws {
+    guard var subscription = subscription(for: message, peer: peer), let sequence = message.sequence
+    else {
+      throw MirrorProtocolError.invalidMessage
+    }
+    if subscription.representation == .text {
+      try subscription.textGate.acknowledge(sequence)
+    } else {
+      try subscription.gate.acknowledge(sequence)
+    }
+    subscriptions[peer.id] = subscription
   }
 
   private func subscribe(_ message: MirrorMessage, peer: MirrorConnection) throws {

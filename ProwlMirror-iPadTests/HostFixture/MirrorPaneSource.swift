@@ -26,8 +26,7 @@ extension MirrorPaneSource {
       reason: "This Agent does not support message submission.",
       observedAt: 0)
   }
-  func submit(_ text: String, to id: UUID, expected: MirrorAgentState) async -> MirrorSubmitOutcome
-  {
+  func submit(_ text: String, to id: UUID, expected: MirrorAgentState) -> MirrorSubmitOutcome {
     .init(status: .rejected, detail: "Submission is unavailable.")
   }
   var supportsBoundedHistory: Bool { false }
