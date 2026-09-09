@@ -68,6 +68,12 @@ struct MirrorSubmissionTransportTests {
         hostRunID: lease.hostRunID, submissionID: UUID(), agentGeneration: state.generation))
     #expect(try await nextResult(&messages).result?.status == .unknown)
     #expect(source.deliveries == 1)
+    source.observationRevision = 1
+    request.submissionID = UUID()
+    request.observationRevision = 1
+    connection.send(request)
+    #expect(try await nextResult(&messages).result?.status == .accepted)
+    #expect(source.deliveries == 2)
   }
 
   private func nextResult(_ messages: inout AsyncStream<MirrorMessage>.Iterator) async throws
@@ -84,14 +90,15 @@ struct MirrorSubmissionTransportTests {
     let id = UUID()
     let generation = UUID()
     var deliveries = 0
+    var observationRevision: UInt64 = 0
     var supportsSubmission: Bool { true }
     func panes() -> [MirrorPaneDescriptor] {
       [.init(id: id, title: "Submission fixture", directory: "/fixture", busy: false)]
     }
     func submissionState(_ id: UUID) -> MirrorAgentState {
       .init(
-        generation: generation, revision: UInt64(deliveries), canSubmit: deliveries == 0,
-        reason: deliveries == 0 ? "Ready" : "Working", observedAt: 0)
+        generation: generation, revision: observationRevision, canSubmit: true,
+        reason: "Detector has not observed the delivery yet", observedAt: 0)
     }
     func submit(_ text: String, to id: UUID, expected: MirrorAgentState) async
       -> MirrorSubmitOutcome

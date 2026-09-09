@@ -25,6 +25,7 @@ final class MirrorHost {
   @ObservationIgnored private var pollTask: Task<Void, Never>?
   @ObservationIgnored private var versions: [UUID: Int] = [:]
   @ObservationIgnored private var submissionLedger = MirrorSubmissionLedger()
+  @ObservationIgnored private var deliveredObservations: [UUID: MirrorAgentState] = [:]
   private(set) var hostRunID: UUID?
 
   private struct Subscription {
@@ -117,6 +118,7 @@ final class MirrorHost {
     versions.removeAll()
     hostRunID = nil
     submissionLedger = MirrorSubmissionLedger()
+    deliveredObservations.removeAll()
     subscriberCount = 0
     isRunning = false
     isStarting = false
@@ -254,7 +256,7 @@ final class MirrorHost {
     }
     if let first { peer.send(first) }
     if modern, source.supportsSubmission {
-      next.agentState = source.submissionState(paneID)
+      next.agentState = submissionState(paneID)
       subscriptions[peer.id] = next
       peer.send(
         MirrorMessage(
@@ -367,7 +369,7 @@ final class MirrorHost {
     let owner = peer.id
     Task { [weak self, weak peer] in
       guard let self, self.hostRunID == key.run else { return }
-      let state = self.source.submissionState(key.pane)
+      let state = self.submissionState(key.pane)
       let outcome: MirrorSubmitOutcome
       if self.subscriptions[owner]?.id != subscription.id || state.generation != key.generation
         || state.revision != revision || !state.canSubmit
@@ -376,7 +378,13 @@ final class MirrorHost {
           status: .rejected,
           detail: "The pane ownership or Agent state changed. Refresh before sending.")
       } else {
+        self.deliveredObservations[key.pane] = state
         outcome = await self.source.submit(text, to: key.pane, expected: state)
+        if self.hostRunID == key.run, outcome.status == .rejected,
+          self.deliveredObservations[key.pane] == state
+        {
+          self.deliveredObservations.removeValue(forKey: key.pane)
+        }
       }
       guard self.hostRunID == key.run else { return }
       let final =
@@ -388,7 +396,21 @@ final class MirrorHost {
     }
   }
 
+  private func submissionState(_ pane: UUID) -> MirrorAgentState {
+    let state = source.submissionState(pane)
+    guard let delivered = deliveredObservations[pane], delivered.generation == state.generation,
+      state.revision <= delivered.revision
+    else { return state }
+    return MirrorAgentState(
+      generation: state.generation, revision: state.revision, canSubmit: false,
+      reason: "Waiting for updated Agent state after delivery.", observedAt: state.observedAt)
+  }
+
   private func poll() {
+    if !deliveredObservations.isEmpty {
+      let live = Set(source.panes().map(\.id))
+      deliveredObservations = deliveredObservations.filter { live.contains($0.key) }
+    }
     for (id, var subscription) in subscriptions {
       guard let peer = peers[id] else { continue }
       guard source.panes().contains(where: { $0.id == subscription.paneID }) else {
@@ -399,7 +421,7 @@ final class MirrorHost {
       }
       do {
         if versions[id] == 2, source.supportsSubmission {
-          let state = source.submissionState(subscription.paneID)
+          let state = submissionState(subscription.paneID)
           if subscription.agentState?.generation != state.generation
             || subscription.agentState?.revision != state.revision
             || subscription.agentState?.canSubmit != state.canSubmit
