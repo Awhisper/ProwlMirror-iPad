@@ -13,7 +13,11 @@ ProwlMirror-iPadUITests/     UI tests
 The current implementation supports protocol-v2 discovery, explicit pane takeover,
 live text replacement, retry without taking over another client, and foreground
 refresh. Code and table details open as a frozen copy while the main view continues
-updating. Successful connection details are saved in the local Keychain.
+updating. Long ordinary text blocks use bounded, lazily drawn plain-text chunks
+to avoid laying out the entire output at once. Their context menu copies the full
+original block; short blocks retain inline Markdown styling. This first-viewport
+optimization does not yet cover expanded code or table details.
+Successful connection details are saved in the local Keychain.
 
 Edit Connection updates the IP, port or pairing key; reconnecting does not take over
 another device's pane. On Hosts with `refresh`, foreground refresh keeps the same

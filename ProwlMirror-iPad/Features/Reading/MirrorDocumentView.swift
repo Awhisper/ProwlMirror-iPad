@@ -9,8 +9,7 @@ struct MirrorDocumentView: View {
       ForEach(MirrorDocument(text).blocks) { block in
         switch block {
         case .text(_, let content):
-          Text(renderInline(content)).textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+          textBlock(content)
         case .code(_, let language, let code):
           VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -58,6 +57,25 @@ struct MirrorDocumentView: View {
     (try? AttributedString(
       markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
       ?? AttributedString(text)
+  }
+
+  @ViewBuilder
+  private func textBlock(_ content: String) -> some View {
+    let chunks = MirrorTextLayout.chunks(content)
+    if chunks.count == 1 {
+      Text(renderInline(content)).textSelection(.enabled)
+    } else {
+      LazyVStack(alignment: .leading, spacing: 0) {
+        ForEach(chunks) { chunk in
+          Text(verbatim: chunk.display)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+      }
+      .contextMenu {
+        Button("Copy Full Text Block") { UIPasteboard.general.string = content }
+      }
+    }
   }
 
   private func table(_ rows: [[String]]) -> some View {

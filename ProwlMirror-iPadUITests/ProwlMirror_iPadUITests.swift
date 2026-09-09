@@ -15,8 +15,8 @@ final class ProwlMirror_iPadUITests: XCTestCase {
     let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Live marker "))
     guard
       let anchor = rows.allElementsBoundByIndex.first(where: {
-        $0.isHittable && $0.frame.minY > reading.frame.minY + 20
-          && $0.frame.maxY < reading.frame.maxY
+        $0.frame.minY > reading.frame.minY + 20
+          && $0.frame.maxY < reading.frame.maxY && $0.isHittable
       })
     else {
       XCTFail("No visible live anchor")
@@ -52,8 +52,8 @@ final class ProwlMirror_iPadUITests: XCTestCase {
       NSPredicate(format: "label BEGINSWITH %@", "Retained line "))
     guard
       let anchor = rows.allElementsBoundByIndex.first(where: {
-        $0.isHittable && $0.frame.minY > history.frame.minY + 20
-          && $0.frame.maxY < history.frame.maxY
+        $0.frame.minY > history.frame.minY + 20
+          && $0.frame.maxY < history.frame.maxY && $0.isHittable
       })
     else {
       XCTFail("No visible history anchor")
