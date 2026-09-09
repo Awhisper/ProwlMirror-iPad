@@ -23,6 +23,8 @@
         id: UUID(), title: "UI Fixture · Codex", directory: "/fixture", busy: false,
         projectName: "UI Fixture", subtitle: "Codex · main")
       private let lease = UUID()
+      private let run = UUID()
+      private let agentGeneration = UUID()
       private let history = MirrorHistory(
         text: (1...401).map { "Retained line \($0)" }.joined(separator: "\n"), truncated: true)
       private var sequence: UInt64 = 0
@@ -36,13 +38,31 @@
           onMessage?(
             .init(
               kind: .panes, panes: [pane], selectedVersion: 2,
-              capabilities: ["text-v1", "history", "refresh"]))
+              capabilities: ["text-v1", "history", "refresh", "agent-state", "submit-text"]))
         case .subscribe:
           onMessage?(
             .init(
               version: 2, kind: .subscribed, paneID: pane.id, subscriptionID: lease,
-              hostRunID: UUID()))
+              hostRunID: run))
           frame()
+          onMessage?(
+            .init(
+              version: 2, kind: .state, subscriptionID: lease,
+              agentState: .init(
+                generation: agentGeneration, revision: 1, canSubmit: true,
+                reason: "Ready to send", observedAt: 1)))
+        case .submit:
+          onMessage?(
+            .init(
+              version: 2, kind: .submitResult, paneID: pane.id,
+              hostRunID: run, submissionID: message.submissionID, agentGeneration: agentGeneration,
+              result: .init(status: .accepted, detail: "Fixture message delivered")))
+          onMessage?(
+            .init(
+              version: 2, kind: .state, subscriptionID: lease,
+              agentState: .init(
+                generation: agentGeneration, revision: 2, canSubmit: false,
+                reason: "Working", observedAt: 2)))
         case .refresh: frame()
         case .history:
           do {

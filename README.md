@@ -23,7 +23,18 @@ History is available when the Host advertises bounded history capture. It opens 
 frozen snapshot with capture time and truncation information; loading earlier pages
 preserves the reading position while live output continues updating separately.
 
-This is an implementation checkpoint: message submission is not enabled yet.
+The composer supports multiline drafts and explicit Send when the Host advertises
+submission and reports the Agent ready. Pending or uncertain delivery blocks another
+send. Reconnection queries the original receipt without replaying the text, and an
+accepted receipt clears only a draft that has not been edited since submission.
+The UIKit composer distinguishes marked text and physical key presses. A single
+Return inserts a newline; two physical Returns within 350 ms submit when ready,
+removing only the first key's inserted newline. Editing, selection changes, losing
+focus, changed Agent state and IME composition cancel the pair. Software Return
+does not trigger this shortcut. Pending submissions retain a viewable text copy.
+
+This is an implementation checkpoint: production Agent delivery is not enabled yet;
+the submission UI and receipt handling are exercised with deterministic test sources.
 It requires the mobile-mirror Host changes in Prowl; an older
 Host is reported as incompatible. Ghostty is not embedded in this client.
 

@@ -5,6 +5,103 @@ import Testing
 
 @MainActor
 struct MirrorSessionTests {
+  @Test func receiptDoesNotClearAnEditedDraftOrRepeatSubmission() throws {
+    let transport = FakeTransport()
+    let session = makeSession(transport)
+    let pane = MirrorPaneDescriptor(id: UUID(), title: "Fixture", directory: "/", busy: false)
+    session.connect()
+    let listing = MirrorMessage(
+      kind: .panes, panes: [pane], selectedVersion: 2,
+      capabilities: ["text-v1", "agent-state", "submit-text"])
+    transport.onMessage?(listing)
+    session.select(pane)
+    let lease = UUID()
+    let run = UUID()
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .subscribed, paneID: pane.id,
+        subscriptionID: lease, hostRunID: run))
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .textFrame, sequence: 1,
+        text: "Ready", subscriptionID: lease))
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .state, subscriptionID: lease,
+        agentState: .init(
+          generation: UUID(), revision: 1, canSubmit: true, reason: "Ready", observedAt: 1)))
+    session.draft = "first\nsecond"
+    #expect(session.canSubmit)
+    session.submitDraft()
+    session.submitDraft()
+    #expect(transport.sent.filter { $0.kind == .submit }.count == 1)
+    let request = try #require(transport.sent.last)
+    session.draft = "changed"
+    #expect(session.submission?.text == "first\nsecond")
+    session.draft = "first\nsecond"
+    transport.onClose?("Lost")
+    #expect(session.submission?.outcome.status == .unknown)
+    session.retry()
+    transport.onMessage?(listing)
+    #expect(transport.sent.filter { $0.kind == .submit }.count == 1)
+    #expect(
+      transport.sent.contains {
+        $0.kind == .submissionStatus && $0.submissionID == request.submissionID
+      })
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .submitResult, paneID: pane.id,
+        hostRunID: run, submissionID: request.submissionID,
+        agentGeneration: request.agentGeneration,
+        result: .init(status: .accepted, detail: "Delivered")))
+    #expect(session.draft == "first\nsecond")
+    #expect(session.submission?.outcome.status == .accepted)
+  }
+
+  @Test func acceptedReceiptClearsOnlyTheUnchangedDraft() throws {
+    let transport = FakeTransport()
+    let session = makeSession(transport)
+    let pane = MirrorPaneDescriptor(id: UUID(), title: "Fixture", directory: "/", busy: false)
+    session.connect()
+    transport.onMessage?(
+      MirrorMessage(
+        kind: .panes, panes: [pane], selectedVersion: 2,
+        capabilities: ["text-v1", "agent-state", "submit-text"]))
+    session.select(pane)
+    let lease = UUID()
+    let run = UUID()
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .subscribed, paneID: pane.id,
+        subscriptionID: lease, hostRunID: run))
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .textFrame, sequence: 1,
+        text: "Ready", subscriptionID: lease))
+    session.draft = "message"
+    #expect(!session.canSubmit)
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .state, subscriptionID: lease,
+        agentState: .init(
+          generation: UUID(), revision: 1, canSubmit: false, reason: "Busy", observedAt: 1)))
+    #expect(!session.canSubmit)
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .state, subscriptionID: lease,
+        agentState: .init(
+          generation: UUID(), revision: 2, canSubmit: true, reason: "Ready", observedAt: 2)))
+    session.submitDraft()
+    let request = try #require(transport.sent.last)
+    transport.onMessage?(
+      MirrorMessage(
+        version: 2, kind: .submitResult, paneID: pane.id,
+        hostRunID: run, submissionID: request.submissionID,
+        agentGeneration: request.agentGeneration,
+        result: .init(status: .accepted, detail: "Delivered")))
+    #expect(session.draft.isEmpty)
+  }
+
   @Test func historyPagesStayFrozenAndDoNotReplaceLiveOutput() {
     let transport = FakeTransport()
     let session = makeSession(transport)

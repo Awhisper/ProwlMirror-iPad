@@ -2,6 +2,28 @@ import XCTest
 
 final class ProwlMirror_iPadUITests: XCTestCase {
   @MainActor
+  func testMultilineDraftRequiresExplicitSend() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--mirror-ui-fixture"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    let wide = NSPredicate { _, _ in app.frame.width > app.frame.height }
+    expectation(for: wide, evaluatedWith: nil)
+    waitForExpectations(timeout: 10)
+    let input = app.descendants(matching: .any).matching(identifier: "mirror-message-input")
+      .firstMatch
+    XCTAssertTrue(input.waitForExistence(timeout: 10))
+    input.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.1)).tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    input.typeText("First line\nSecond line")
+    XCTAssertFalse(app.staticTexts["Fixture message delivered"].exists)
+    XCTAssertTrue(app.buttons["Send"].isEnabled)
+    app.buttons["Send"].tap()
+    XCTAssertTrue(app.staticTexts["Fixture message delivered"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["Send"].isEnabled)
+  }
+
+  @MainActor
   func testReadingHistoryDetailsAndConnectionEditing() {
     let app = XCUIApplication()
     app.launchArguments = ["--mirror-ui-fixture"]

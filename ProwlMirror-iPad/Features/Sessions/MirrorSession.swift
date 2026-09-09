@@ -54,7 +54,41 @@ final class MirrorSession: Identifiable {
   var showsHistory = false
   @ObservationIgnored private var historyID: UUID?
   @ObservationIgnored private var historyBytes = 0
-  var draft = ""
+  var draft = "" {
+    didSet { if draft != oldValue { draftRevision = UUID() } }
+  }
+  private(set) var agentState: MirrorAgentState?
+  private(set) var supportsSubmission = false
+  var isComposing = false
+  private(set) var submission: Submission?
+  @ObservationIgnored private var draftRevision = UUID()
+  @ObservationIgnored private var hostRunID: UUID?
+
+  struct Submission {
+    let id: UUID
+    let text: String
+    let paneID: UUID
+    let runID: UUID
+    let agentGeneration: UUID
+    let draftRevision: UUID
+    let configuration: MirrorSavedConnection
+    var outcome: MirrorSubmitOutcome
+  }
+
+  var canSubmit: Bool {
+    status == .live && supportsSubmission && !isComposing && agentState?.canSubmit == true
+      && agentState?.generation != nil && subscriptionID != nil && hostRunID != nil
+      && submission?.outcome.status != .pending && submission?.outcome.status != .unknown
+      && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && draft.utf8.count <= MirrorWire.maximumInput
+  }
+
+  var submissionHint: String {
+    if let submission { return submission.outcome.detail }
+    if !supportsSubmission { return "This Host has not enabled message submission for this pane." }
+    if status != .live { return "Reconnect to the pane before sending." }
+    return agentState?.reason ?? "Waiting for Agent state…"
+  }
   var followsLatest = true
   var onVerifiedConnection: ((MirrorSavedConnection) -> Void)?
   @ObservationIgnored private var transport: (any MirrorTransport)?
@@ -88,6 +122,7 @@ final class MirrorSession: Identifiable {
     error = nil
     status = .connecting
     generation = UUID()
+    agentState = nil
     let attempt = generation
     do {
       let channel = try makeTransport(configuration)
@@ -104,6 +139,8 @@ final class MirrorSession: Identifiable {
         guard let self, self.generation == attempt else { return }
         self.transport = nil
         self.subscriptionID = nil
+        self.agentState = nil
+        self.markDeliveryUncertain()
         self.isLoadingHistory = false
         if self.status == .live || self.status == .connecting || self.status == .subscribing
           || self.status == .choosingPane
@@ -143,6 +180,7 @@ final class MirrorSession: Identifiable {
       retry()
     } else if status == .live, supportsRefresh, let subscriptionID {
       send(MirrorMessage(version: 2, kind: .refresh, subscriptionID: subscriptionID))
+      querySubmission()
     }
   }
 
@@ -170,8 +208,50 @@ final class MirrorSession: Identifiable {
     old?.onClose = nil
     old?.close(nil)
     subscriptionID = nil
+    agentState = nil
+    markDeliveryUncertain()
     isLoadingHistory = false
     status = .disconnected
+  }
+
+  func submitDraft() {
+    guard canSubmit, let pane, let subscriptionID, let hostRunID,
+      let state = agentState, let agentGeneration = state.generation
+    else { return }
+    let request = Submission(
+      id: UUID(), text: draft, paneID: pane.id, runID: hostRunID,
+      agentGeneration: agentGeneration, draftRevision: draftRevision, configuration: configuration,
+      outcome: .init(status: .pending, detail: "Waiting for delivery confirmation…"))
+    submission = request
+    send(
+      MirrorMessage(
+        version: 2, kind: .submit, paneID: pane.id, text: draft,
+        subscriptionID: subscriptionID, hostRunID: hostRunID, submissionID: request.id,
+        agentGeneration: agentGeneration, observationRevision: state.revision))
+  }
+
+  func querySubmission() {
+    guard let submission, transport != nil, submission.configuration == configuration,
+      submission.outcome.status == .pending || submission.outcome.status == .unknown
+    else { return }
+    send(
+      MirrorMessage(
+        version: 2, kind: .submissionStatus, paneID: submission.paneID,
+        hostRunID: submission.runID, submissionID: submission.id,
+        agentGeneration: submission.agentGeneration))
+  }
+
+  func acknowledgeUnknownSubmission() {
+    guard submission?.outcome.status == .unknown else { return }
+    submission = nil
+  }
+
+  private func markDeliveryUncertain() {
+    if submission?.outcome.status == .pending {
+      submission?.outcome = .init(
+        status: .unknown,
+        detail: "Delivery is unconfirmed. Check the receipt or Host output before sending again.")
+    }
   }
 
   func loadHistory(refresh: Bool = false) {
@@ -215,6 +295,10 @@ final class MirrorSession: Identifiable {
       }
       supportsRefresh = message.capabilities?.contains("refresh") == true
       supportsHistory = message.capabilities?.contains("history") == true
+      supportsSubmission =
+        message.capabilities?.contains("submit-text") == true
+        && message.capabilities?.contains("agent-state") == true
+      if supportsSubmission { querySubmission() }
       panes = message.panes ?? []
       onVerifiedConnection?(configuration)
       if let pane {
@@ -235,6 +319,8 @@ final class MirrorSession: Identifiable {
         return
       }
       subscriptionID = lease
+      hostRunID = message.hostRunID
+      agentState = nil
       historyID = nil
       historyLines = []
       historyBytes = 0
@@ -255,6 +341,26 @@ final class MirrorSession: Identifiable {
       updatedAt = Date()
       status = .live
       send(MirrorMessage(version: 2, kind: .acknowledge, sequence: sequence, subscriptionID: lease))
+    case .state:
+      guard message.version == 2, subscriptionID != nil,
+        message.subscriptionID == subscriptionID, let state = message.agentState,
+        state.observedAt.isFinite
+      else {
+        invalidMessage()
+        return
+      }
+      agentState = state
+    case .submitResult:
+      guard message.version == 2, var current = submission,
+        current.configuration == configuration, message.submissionID == current.id,
+        message.hostRunID == current.runID, message.paneID == current.paneID,
+        message.agentGeneration == current.agentGeneration, let outcome = message.result
+      else { return }
+      // Final receipts cannot be downgraded by a delayed pending response.
+      guard current.outcome.status == .pending || current.outcome.status == .unknown else { return }
+      current.outcome = outcome
+      submission = current
+      if outcome.status == .accepted, current.draftRevision == draftRevision { draft = "" }
     case .historyPage:
       guard isLoadingHistory, message.version == 2, subscriptionID != nil,
         message.subscriptionID == subscriptionID, let id = message.historyID,

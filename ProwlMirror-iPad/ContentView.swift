@@ -241,11 +241,40 @@ private struct MirrorReadingView: View {
       }
       Divider()
       VStack(alignment: .leading) {
-        TextField("Write a message", text: $session.draft, axis: .vertical)
-          .lineLimit(2...6).textFieldStyle(.roundedBorder)
+        MirrorComposer(session: session)
+          .frame(minHeight: 60, maxHeight: 120)
+          .overlay(alignment: .topLeading) {
+            if session.draft.isEmpty {
+              Text("Write a message").foregroundStyle(.secondary)
+                .padding(.horizontal, 5).padding(.vertical, 8).allowsHitTesting(false)
+            }
+          }
+          .accessibilityLabel("Write a message")
+          .accessibilityIdentifier("mirror-message-input")
         HStack {
-          Text("This Host has not enabled message submission for this pane.")
+          Text(session.submissionHint)
             .font(.caption).foregroundStyle(.secondary)
+          Spacer()
+          if session.submission?.outcome.status == .unknown
+            || session.submission?.outcome.status == .pending
+          {
+            Button("Check Receipt") { session.querySubmission() }
+              .disabled(session.status != .live)
+          }
+          if session.submission?.outcome.status == .unknown {
+            Button("I've Checked Host Output") { session.acknowledgeUnknownSubmission() }
+          }
+          Button("Send", systemImage: "arrow.up") { session.submitDraft() }
+            .disabled(!session.canSubmit)
+        }
+        if let submission = session.submission,
+          submission.outcome.status == .pending || submission.outcome.status == .unknown
+        {
+          DisclosureGroup("Submitted message") {
+            ScrollView { Text(submission.text).textSelection(.enabled) }
+              .frame(maxHeight: 120)
+          }
+          .font(.caption)
         }
       }
       .padding()
