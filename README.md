@@ -30,6 +30,11 @@ preserves the reading position while live output continues updating separately.
 Each pane keeps separate live and history reading positions when switching panes.
 Changing the Host address clears the previous Host's history and reading positions.
 
+The composer occupies one line when not editing. Tapping expands it upward; longer
+drafts grow to a bounded height and then scroll internally. Hide Keyboard collapses
+it without losing the draft. External keyboards do not require a visible software
+keyboard.
+
 The composer supports multiline drafts and explicit Send when the Host advertises
 submission and reports the Agent ready. Pending or uncertain delivery blocks another
 send. Reconnection queries the original receipt without replaying the text, and an
@@ -37,12 +42,14 @@ accepted receipt clears only a draft that has not been edited since submission.
 The UIKit composer distinguishes marked text and physical key presses. A single
 Return inserts a newline; two physical Returns within 350 ms submit when ready,
 removing only the first key's inserted newline. Editing, selection changes, losing
-focus, changed Agent state and IME composition cancel the pair. Software Return
+focus, changed Agent generation/readiness revision and IME composition cancel the pair.
+A timestamp-only observation refresh does not cancel it. Software Return
 does not trigger this shortcut. Pending submissions retain a viewable text copy.
 
-This is an implementation checkpoint: the initial Codex adapter in the Mac Host
-working branch builds, but has not completed live Agent submission verification. The submission UI
-and receipt handling are currently verified with deterministic test sources.
+The Mac Host's controlled Codex fixture has verified native submission and a real
+reply, including rejection of Host drafts and duplicate input. The iPad model,
+TLS transport, keyboard, and UI checks use isolated fixtures. User acceptance
+against their actual Host sessions remains separate from these checks.
 It requires the mobile-mirror Host changes in Prowl; an older
 Host is reported as incompatible. Ghostty is not embedded in this client.
 

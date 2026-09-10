@@ -3,6 +3,7 @@ import UIKit
 
 struct MirrorComposer: UIViewRepresentable {
   @Bindable var session: MirrorSession
+  @Binding var isEditing: Bool
 
   func makeUIView(context: Context) -> ComposerTextView {
     let view = ComposerTextView()
@@ -17,6 +18,7 @@ struct MirrorComposer: UIViewRepresentable {
       session?.draft = text
     }
     view.onSubmit = { [weak session] in session?.submitDraft() }
+    view.onFocusChange = { isEditing = $0 }
     return view
   }
 
@@ -26,16 +28,36 @@ struct MirrorComposer: UIViewRepresentable {
       view.text = session.draft
     }
     view.canSubmit = session.canSubmit
-    if view.agentState != session.agentState {
-      view.gesture.cancel()
-      view.agentState = session.agentState
-    }
+    view.updateAgentState(session.agentState)
     if !view.canSubmit { view.gesture.cancel() }
+    if !isEditing, view.isFirstResponder { view.resignFirstResponder() }
+  }
+
+  func sizeThatFits(_ proposal: ProposedViewSize, uiView: ComposerTextView, context: Context)
+    -> CGSize?
+  {
+    guard let width = proposal.width, width > 0 else { return nil }
+    let lineHeight =
+      (uiView.font?.lineHeight ?? 22) + uiView.textContainerInset.top
+      + uiView.textContainerInset.bottom
+    let fullHeight = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+      .height
+    let height = isEditing ? min(max(lineHeight * 2, fullHeight), 168) : lineHeight
+    return CGSize(width: width, height: height)
   }
 
   func makeCoordinator() -> Coordinator { Coordinator() }
 
   final class Coordinator: NSObject, UITextViewDelegate {
+    func textViewDidBeginEditing(_ textView: UITextView) {
+      (textView as? ComposerTextView)?.onFocusChange?(true)
+    }
+
+    func textViewDidEndEditing(_ textView: UITextView) {
+      (textView as? ComposerTextView)?.onFocusChange?(false)
+      textView.setContentOffset(.zero, animated: false)
+    }
+
     func textViewDidChange(_ textView: UITextView) {
       guard let view = textView as? ComposerTextView else { return }
       view.gesture.validate(text: view.text, selection: view.selectedRange)
@@ -55,7 +77,17 @@ final class ComposerTextView: UITextView {
   var agentState: MirrorAgentState?
   var onChange: ((String, Bool) -> Void)?
   var onSubmit: (() -> Void)?
+  var onFocusChange: ((Bool) -> Void)?
   private var returnHeld = false
+
+  func updateAgentState(_ state: MirrorAgentState?) {
+    if agentState?.generation != state?.generation || agentState?.revision != state?.revision
+      || agentState?.canSubmit != state?.canSubmit
+    {
+      gesture.cancel()
+    }
+    agentState = state
+  }
 
   func reportChange() { onChange?(text, markedTextRange != nil) }
 

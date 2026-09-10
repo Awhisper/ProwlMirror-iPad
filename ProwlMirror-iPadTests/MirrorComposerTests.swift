@@ -6,6 +6,28 @@ import UIKit
 
 @MainActor
 struct MirrorComposerTests {
+  @Test func observationTimeRefreshDoesNotCancelDoubleReturn() {
+    let view = ComposerTextView()
+    let generation = UUID()
+    view.canSubmit = true
+    view.updateAgentState(
+      .init(generation: generation, revision: 1, canSubmit: true, reason: "Ready", observedAt: 0))
+    view.text = "message"
+    view.selectedRange = NSRange(location: 7, length: 0)
+    var sends = 0
+    view.onSubmit = { sends += 1 }
+    let press = ReturnPress()
+    let event = KeyEvent()
+    view.pressesBegan([press], with: event)
+    view.pressesEnded([press], with: event)
+    view.updateAgentState(
+      .init(generation: generation, revision: 1, canSubmit: true, reason: "Ready", observedAt: 1))
+    event.time = 0.2
+    view.pressesBegan([press], with: event)
+    #expect(sends == 1)
+    #expect(view.text == "message")
+  }
+
   @Test func physicalReturnInsertsOnceThenSubmitsWithoutRemovingExistingNewlines() {
     let view = ComposerTextView()
     view.canSubmit = true

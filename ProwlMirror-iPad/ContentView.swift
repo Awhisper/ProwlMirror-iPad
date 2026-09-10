@@ -180,6 +180,7 @@ private struct MirrorReadingView: View {
   @State private var showsConnectionEditor = false
   @State private var position: ScrollPosition
   @State private var observedInitialPosition = false
+  @State private var isEditing = false
 
   init(session: MirrorSession) {
     self.session = session
@@ -269,8 +270,8 @@ private struct MirrorReadingView: View {
       }
       Divider()
       VStack(alignment: .leading) {
-        MirrorComposer(session: session)
-          .frame(minHeight: 60, maxHeight: 120)
+        MirrorComposer(session: session, isEditing: $isEditing)
+          .fixedSize(horizontal: false, vertical: true)
           .overlay(alignment: .topLeading) {
             if session.draft.isEmpty {
               Text("Write a message").foregroundStyle(.secondary)
@@ -283,6 +284,13 @@ private struct MirrorReadingView: View {
           Text(session.submissionHint)
             .font(.caption).foregroundStyle(.secondary)
           Spacer()
+          if isEditing {
+            Button("Hide Keyboard", systemImage: "keyboard.chevron.compact.down") {
+              isEditing = false
+            }
+            .labelStyle(.iconOnly)
+            .accessibilityIdentifier("mirror-dismiss-keyboard")
+          }
           if session.submission?.outcome.status == .unknown
             || session.submission?.outcome.status == .pending
           {
