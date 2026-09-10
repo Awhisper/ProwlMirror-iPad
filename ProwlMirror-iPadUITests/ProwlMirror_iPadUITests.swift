@@ -18,6 +18,12 @@ final class ProwlMirror_iPadUITests: XCTestCase {
     second.typeText("3x9r")
     XCTAssertEqual(first.value as? String, "K7MP")
     XCTAssertEqual((second.value as? String)?.uppercased(), "3X9R")
+    first.tap()
+    first.typeText(XCUIKeyboardKey.delete.rawValue + "n")
+    XCTAssertEqual((first.value as? String)?.uppercased(), "K7MN")
+    first.typeText(XCUIKeyboardKey.delete.rawValue + "q")
+    XCTAssertEqual((first.value as? String)?.uppercased(), "K7MQ")
+    XCTAssertEqual((second.value as? String)?.uppercased(), "3X9R")
     let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
     attachment.name = "Two-part pairing code"
     attachment.lifetime = .keepAlways

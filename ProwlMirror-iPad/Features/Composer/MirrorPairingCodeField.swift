@@ -47,7 +47,9 @@ struct MirrorPairingCodeField: View {
     Binding(
       get: { index == 0 ? first : second },
       set: { value in
+        let previous = index == 0 ? first : second
         let text = value.uppercased().filter { $0 != "-" && !$0.isWhitespace }
+        guard text != previous else { return }
         if value.trimmingCharacters(in: .whitespacesAndNewlines).count == 64 {
           key = value.trimmingCharacters(in: .whitespacesAndNewlines)
           legacy = true
@@ -60,7 +62,10 @@ struct MirrorPairingCodeField: View {
         } else {
           if index == 0 { first = text } else { second = text }
           key = first + "-" + second
-          if index == 0, text.count == 4 { focused = 1 }
+          // Only advance during initial entry; editing a saved code must keep its cursor.
+          if index == 0, previous.count < 4, text.count == 4, second.isEmpty {
+            focused = 1
+          }
         }
       })
   }
