@@ -56,6 +56,7 @@ struct MirrorSessionTests {
         result: .init(status: .accepted, detail: "Delivered")))
     #expect(session.draft == "first\nsecond")
     #expect(session.submission?.outcome.status == .accepted)
+    #expect(session.submissionHint != "Delivered")
   }
 
   @Test func acceptedReceiptClearsOnlyTheUnchangedDraft() throws {

@@ -79,3 +79,8 @@ key. Saved codes remain in Keychain and are reusable until that Host stops.
 Short-code Hosts require this updated client; they use ECDHE-PSK TLS and limit new
 connection attempts to 12 per minute across clients. Wait a minute after repeated
 failed attempts. No separate long-lived enrollment credential is exchanged.
+
+After a terminal-accepted submission, the composer hint follows the current Host
+readiness state. Pending/unknown/rejected outcomes still show their delivery detail.
+The Host's Claude path now separates paste from Enter and can recover idle readiness
+without replaying old text; this source checkpoint awaits runtime verification.

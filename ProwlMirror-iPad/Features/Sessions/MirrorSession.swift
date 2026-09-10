@@ -86,7 +86,7 @@ final class MirrorSession: Identifiable {
   }
 
   var submissionHint: String {
-    if let submission { return submission.outcome.detail }
+    if let submission, submission.outcome.status != .accepted { return submission.outcome.detail }
     if !supportsSubmission { return "This Host has not enabled message submission for this pane." }
     if status != .live { return "Reconnect to the pane before sending." }
     return agentState?.reason ?? "Waiting for Agent state…"
