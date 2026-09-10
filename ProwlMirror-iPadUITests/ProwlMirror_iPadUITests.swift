@@ -2,6 +2,21 @@ import XCTest
 
 final class ProwlMirror_iPadUITests: XCTestCase {
   @MainActor
+  func testSidebarClosesMirrorsWithOneClick() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--mirror-ui-fixture", "--mirror-ui-multiple-fixtures"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    let closeFirst = app.buttons["close-mirror-UI Fixture"]
+    XCTAssertTrue(closeFirst.waitForExistence(timeout: 10))
+    closeFirst.tap()
+    XCTAssertFalse(closeFirst.exists)
+    XCTAssertTrue(app.navigationBars["Second Fixture · Codex"].waitForExistence(timeout: 5))
+    app.buttons["close-mirror-Second Fixture"].tap()
+    XCTAssertTrue(app.staticTexts["Connect to Prowl"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
   func testPairingCodeUsesTwoEditableHalves() {
     let app = XCUIApplication()
     app.launchArguments += ["--mirror-ui-fixture"]

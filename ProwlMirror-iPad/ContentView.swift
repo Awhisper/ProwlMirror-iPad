@@ -27,18 +27,35 @@ struct ContentView: View {
     NavigationSplitView(columnVisibility: $columns) {
       List(selection: $selectedID) {
         ForEach(sessions) { session in
-          VStack(alignment: .leading, spacing: 4) {
-            Text(session.pane?.projectName ?? session.pane?.title ?? session.configuration.address)
+          HStack {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(
+                session.pane?.projectName ?? session.pane?.title ?? session.configuration.address
+              )
               .font(.headline)
-            Text(session.pane?.subtitle ?? session.configuration.address).font(.caption)
-            Text(session.status.label).font(.caption).foregroundStyle(.secondary)
+              Text(session.pane?.subtitle ?? session.configuration.address).font(.caption)
+              Text(session.status.label).font(.caption).foregroundStyle(session.status.displayColor)
+            }
+            Spacer(minLength: 8)
+            Button {
+              close(session)
+            } label: {
+              Image(systemName: "xmark.circle")
+                .padding(8).contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(
+              "Close mirror \(session.pane?.projectName ?? session.configuration.address)"
+            )
+            .accessibilityIdentifier(
+              "close-mirror-\(session.pane?.projectName ?? session.configuration.address)"
+            )
+            .help("Remove this mirror; the Host terminal keeps running")
           }
           .tag(session.id)
           .contextMenu {
             Button("Close Mirror", role: .destructive) {
-              session.disconnect()
-              sessions.removeAll { $0.id == session.id }
-              if selectedID == session.id { selectedID = nil }
+              close(session)
             }
           }
         }
@@ -82,6 +99,22 @@ struct ContentView: View {
         wasBackgrounded = false
         for session in sessions { session.foreground() }
       }
+    }
+  }
+
+  private func close(_ session: MirrorSession) {
+    session.disconnect()
+    sessions.removeAll { $0.id == session.id }
+    if selectedID == session.id { selectedID = sessions.first?.id }
+  }
+}
+
+extension MirrorSession.Status {
+  var displayColor: Color {
+    switch self {
+    case .live: .green
+    case .disconnected, .takenOver, .hostStopped, .paneClosed, .incompatible: .red
+    case .connecting, .choosingPane, .subscribing: .secondary
     }
   }
 }
@@ -193,7 +226,8 @@ private struct MirrorReadingView: View {
           session.status.label,
           systemImage: session.status == .live ? "checkmark.circle" : "network.slash"
         )
-        .foregroundStyle(session.status == .live ? Color.green : Color.secondary)
+        .foregroundStyle(session.status.displayColor)
+        .fontWeight(session.status == .live ? .regular : .semibold)
         Spacer()
         if session.status == .takenOver {
           Button("Take Over") { session.retry(takeover: true) }

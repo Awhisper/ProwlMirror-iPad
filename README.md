@@ -73,7 +73,8 @@ See `ThirdPartyNotices/` for the source and license of the Prowl-derived code.
 ### Pairing input
 
 Enter the Host's code in two fields: `K7MP` – `3X9R`. The first field advances to
-the second after four characters. Either field accepts a pasted complete code;
+the second after four characters during initial entry when the second field is empty.
+Editing an existing code keeps the cursor in the edited field. Either field accepts a pasted complete code;
 case and separators do not matter. Use Legacy Key accepts an older Host's 64-character
 key. Saved codes remain in Keychain and are reusable until that Host stops.
 Short-code Hosts require this updated client; they use ECDHE-PSK TLS and limit new
@@ -83,4 +84,15 @@ failed attempts. No separate long-lived enrollment credential is exchanged.
 After a terminal-accepted submission, the composer hint follows the current Host
 readiness state. Pending/unknown/rejected outcomes still show their delivery detail.
 The Host's Claude path now separates paste from Enter and can recover idle readiness
-without replaying old text; this source checkpoint awaits runtime verification.
+without replaying old text.
+
+### Closing mirrors and connection status
+
+Each sidebar row has a close button. One click removes that local mirror and cancels
+its subscription; the Host terminal keeps running. Closing the selected mirror
+selects the first remaining mirror, or shows the empty state if none remain.
+The context-menu Close Mirror action remains available.
+
+Connection loss, Host shutdown, a closed pane, takeover, and incompatibility appear
+in red, with the specific reason preserved. The last received output stays visible.
+Retry and Take Over retain their existing behavior; closing a mirror never retries it.
