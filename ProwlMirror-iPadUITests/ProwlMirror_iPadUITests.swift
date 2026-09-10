@@ -2,6 +2,30 @@ import XCTest
 
 final class ProwlMirror_iPadUITests: XCTestCase {
   @MainActor
+  func testPairingCodeUsesTwoEditableHalves() {
+    let app = XCUIApplication()
+    app.launchArguments += ["--mirror-ui-fixture"]
+    XCUIDevice.shared.orientation = .landscapeLeft
+    app.launch()
+    XCTAssertTrue(app.buttons["Edit Connection"].waitForExistence(timeout: 10))
+    app.buttons["Edit Connection"].tap()
+    app.buttons["Use Short Code"].tap()
+    let first = app.textFields["pairing-code-first"]
+    let second = app.textFields["pairing-code-second"]
+    XCTAssertTrue(first.waitForExistence(timeout: 5))
+    first.tap()
+    first.typeText("k7mp")
+    second.typeText("3x9r")
+    XCTAssertEqual(first.value as? String, "K7MP")
+    XCTAssertEqual((second.value as? String)?.uppercased(), "3X9R")
+    let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    attachment.name = "Two-part pairing code"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    app.buttons["Cancel"].tap()
+  }
+
+  @MainActor
   func testLargeFrozenTableShowsRowsAndScrolls() {
     let app = XCUIApplication()
     app.launchArguments = ["--mirror-ui-fixture", "--mirror-ui-large-table-fixture"]
@@ -186,7 +210,9 @@ final class ProwlMirror_iPadUITests: XCTestCase {
     key.typeText("x")
     app.buttons["Reconnect"].tap()
     XCTAssertTrue(
-      app.staticTexts["Paste the 64-character pairing key shown on the Host."].waitForExistence(
+      app.staticTexts[
+        "Enter the 8-character pairing code shown on Host, or paste a legacy 64-character key."
+      ].waitForExistence(
         timeout: 5))
     app.buttons["Cancel"].tap()
     XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 5))

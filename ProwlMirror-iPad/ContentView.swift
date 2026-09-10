@@ -128,8 +128,7 @@ private struct AddConnectionView: View {
               .textInputAutocapitalization(.never).autocorrectionDisabled()
               .accessibilityIdentifier("host-address")
             TextField("Port", text: $port).keyboardType(.numberPad)
-            SecureField("Pairing Key", text: $key)
-              .textInputAutocapitalization(.never).autocorrectionDisabled()
+            MirrorPairingCodeField(key: $key)
             Button(session?.status == .connecting ? "Connecting…" : "Connect") { connect() }
               .disabled(session?.status == .connecting)
           }
@@ -352,8 +351,7 @@ private struct MirrorConnectionEditor: View {
         TextField("Host IP", text: $address)
           .textInputAutocapitalization(.never).autocorrectionDisabled()
         TextField("Port", text: $port).keyboardType(.numberPad)
-        SecureField("Pairing Key", text: $key)
-          .textInputAutocapitalization(.never).autocorrectionDisabled()
+        MirrorPairingCodeField(key: $key)
         Text("Reconnect only if the pane is free. Changing Host opens pane selection.")
           .font(.caption).foregroundStyle(.secondary)
         if let error { Text(error).foregroundStyle(.red) }

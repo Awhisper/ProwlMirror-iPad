@@ -69,3 +69,13 @@ code, table and history data for UI tests. It does not connect to a real Host or
 save credentials. UI tests also exercise connection editing and invalid-key feedback.
 
 See `ThirdPartyNotices/` for the source and license of the Prowl-derived code.
+
+### Pairing input
+
+Enter the Host's code in two fields: `K7MP` – `3X9R`. The first field advances to
+the second after four characters. Either field accepts a pasted complete code;
+case and separators do not matter. Use Legacy Key accepts an older Host's 64-character
+key. Saved codes remain in Keychain and are reusable until that Host stops.
+Short-code Hosts require this updated client; they use ECDHE-PSK TLS and limit new
+connection attempts to 12 per minute across clients. Wait a minute after repeated
+failed attempts. No separate long-lived enrollment credential is exchanged.
